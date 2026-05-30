@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="title">Page Monitor</h1>
+      <label class="toggle-label">
+        <span class="toggle-text">全局开关</span>
+        <input type="checkbox" id="global-toggle" class="toggle-input">
+        <span class="toggle-track"></span>
+      </label>
+    </header>
+
+    <!-- Rule List -->
+    <section id="rule-list-section" class="section">
+      <div class="section-header">
+        <h2>监控规则</h2>
+        <button id="add-rule-btn" class="btn btn-primary btn-sm">+ 新建</button>
+      </div>
+      <div id="rule-list" class="rule-list">
+        <div class="empty-state">暂无规则，点击「+ 新建」创建</div>
+      </div>
+    </section>
+
+    <!-- Rule Form (hidden by default) -->
+    <section id="rule-form-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2 id="form-title">新建规则</h2>
+        <button class="btn btn-text cancel-form">✕</button>
+      </div>
+      <form id="rule-form" class="rule-form">
+        <div class="form-group">
+          <label for="rule-name">规则名称</label>
+          <input type="text" id="rule-name" class="form-input" placeholder="如：生产环境状态监控" required>
+        </div>
+
+        <div class="form-group">
+          <label for="rule-url">目标 URL</label>
+          <input type="url" id="rule-url" class="form-input" placeholder="https://example.com/dashboard">
+          <select id="rule-url-mode" class="form-select">
+            <option value="contains">包含匹配 (默认)</option>
+            <option value="exact">精确匹配</option>
+            <option value="glob">通配符 (*)</option>
+            <option value="regex">正则表达式</option>
+          </select>
+        </div>
+
+        <div class="form-divider">DOM 监控</div>
+
+        <div class="form-group">
+          <label>CSS 选择器</label>
+          <div class="selector-row">
+            <input type="text" id="rule-selector" class="form-input" placeholder=".status-failed">
+            <button type="button" id="pick-element-btn" class="btn btn-outline btn-sm">选取</button>
+            <button type="button" id="scan-elements-btn" class="btn btn-outline btn-sm">推荐</button>
+          </div>
+        </div>
+
+        <!-- Smart recommendations -->
+        <div id="recommendations" class="recommendations" style="display:none">
+          <div class="rec-header">推荐元素 <span id="rec-count"></span></div>
+          <div id="rec-list" class="rec-list"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="rule-dom-mode">检测模式</label>
+          <select id="rule-dom-mode" class="form-select">
+            <option value="presence">元素存在时触发</option>
+            <option value="absence">元素消失时触发</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="rule-text-filter">文本过滤（可选，只匹配包含此文本的元素）</label>
+          <input type="text" id="rule-text-filter" class="form-input" placeholder="如：未完成（留空则不过滤文本）">
+        </div>
+
+        <div class="form-divider">API 监控（可选）</div>
+
+        <div id="api-endpoints">
+          <div class="api-endpoint-row">
+            <select class="api-method form-select form-select-sm">
+              <option value="ANY">ANY</option>
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+            <input type="text" class="api-path form-input form-input-sm" placeholder="/api/status">
+            <input type="text" class="api-field form-input form-input-sm" placeholder="JSON字段 (如 data.status)">
+            <input type="text" class="api-value form-input form-input-sm" placeholder="预期值">
+            <button type="button" class="btn btn-text btn-sm remove-endpoint" title="移除">✕</button>
+          </div>
+        </div>
+        <button type="button" id="add-endpoint-btn" class="btn btn-link btn-sm">+ 添加 API 端点</button>
+
+        <div class="form-divider">自动刷新</div>
+
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="rule-refresh-enabled">
+            <span>启用自动刷新</span>
+          </label>
+        </div>
+
+        <div id="refresh-config" style="display:none">
+          <div class="form-group">
+            <label class="checkbox-row">
+              <input type="checkbox" id="rule-timed-refresh">
+              <span>定时刷新页面</span>
+            </label>
+            <div class="sub-field">
+              <label>间隔（秒）</label>
+              <input type="number" id="rule-timed-interval" class="form-input form-input-sm" value="30" min="5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-row">
+              <input type="checkbox" id="rule-click-refresh">
+              <span>点击按钮刷新</span>
+            </label>
+            <div class="sub-field">
+              <label>按钮选择器</label>
+              <div class="selector-row">
+                <input type="text" id="rule-click-selector" class="form-input" placeholder=".refresh-btn">
+                <button type="button" id="pick-refresh-btn" class="btn btn-outline btn-sm">选取</button>
+              </div>
+            </div>
+            <div class="sub-field">
+              <label>间隔（秒）</label>
+              <input type="number" id="rule-click-interval" class="form-input form-input-sm" value="60" min="5">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-divider">通知设置</div>
+
+        <div class="form-group">
+          <label for="rule-notify-method">通知方式</label>
+          <select id="rule-notify-method" class="form-select">
+            <option value="system">系统通知</option>
+            <option value="sound">声音提醒</option>
+            <option value="both">系统通知 + 声音</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>自定义通知内容（可选）</label>
+          <textarea id="rule-notify-template" class="form-input" rows="2" placeholder="可用变量: {name} {selector} {text} {count} {url}
+留空则使用默认格式" style="resize:none"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="rule-cooldown">冷却时间（秒）</label>
+          <input type="number" id="rule-cooldown" class="form-input form-input-sm" value="60" min="1">
+        </div>
+
+        <div class="form-divider">检测后自动操作</div>
+
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="rule-detection-action">
+            <span>检测到匹配时自动点击按钮</span>
+          </label>
+          <div class="sub-field" id="detection-action-config" style="display:none">
+            <label>按钮选择器</label>
+            <div class="selector-row">
+              <input type="text" id="rule-action-selector" class="form-input" placeholder=".btn-refresh">
+              <button type="button" id="pick-action-btn" class="btn btn-outline btn-sm">选取</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="delete-rule-btn" class="btn btn-danger" style="display:none">删除</button>
+          <div class="form-actions-right">
+            <button type="button" class="btn btn-outline cancel-form">取消</button>
+            <button type="submit" id="save-rule-btn" class="btn btn-primary">保存</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
