@@ -1,3 +1,21 @@
+/**
+ * Match value against pattern:
+ * - If pattern contains regex special chars, use regex match
+ * - Otherwise do exact string match (case-insensitive)
+ */
+function matchValue(pattern, value) {
+  const hasRegexChars = /[.*+?^${}()|[\]\\]/.test(pattern);
+  if (hasRegexChars) {
+    try {
+      return new RegExp(pattern, 'i').test(value);
+    } catch {
+      // Broken regex, fall back to includes
+      return value.toLowerCase().includes(pattern.toLowerCase());
+    }
+  }
+  return value.toLowerCase() === pattern.toLowerCase();
+}
+
 function getVisibleText(el) {
   if (!el) return '';
   if (!el.children || el.children.length === 0) {
@@ -118,11 +136,7 @@ class DomMonitor {
         if (!inp) { found = false; detailInfo = '无匹配元素'; break; }
         const val = inp.value || '';
         if (checkValue) {
-          try {
-            found = new RegExp(checkValue, 'i').test(val);
-          } catch {
-            found = val.includes(checkValue);
-          }
+          found = matchValue(checkValue, val);
         } else {
           found = val.length > 0;
         }
@@ -134,20 +148,16 @@ class DomMonitor {
 
       case 'select':
         // Check select value
-        const sel = document.querySelector(selector);
-        if (!sel) { found = false; detailInfo = '无匹配元素'; break; }
-        const selVal = sel.value || '';
+        const selEl = document.querySelector(selector);
+        if (!selEl) { found = false; detailInfo = '无匹配元素'; break; }
+        const selVal = selEl.value || '';
         if (checkValue) {
-          try {
-            found = new RegExp(checkValue, 'i').test(selVal);
-          } catch {
-            found = selVal.includes(checkValue);
-          }
+          found = matchValue(checkValue, selVal);
         } else {
           found = selVal.length > 0;
         }
         sampleText = selVal;
-        detailInfo = `选中: ${selVal}`;
+        detailInfo = `选中: "${selVal}"`;
         break;
     }
 

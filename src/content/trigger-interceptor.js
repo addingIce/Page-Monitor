@@ -1,3 +1,12 @@
+function matchValue(pattern, value) {
+  const hasRegexChars = /[.*+?^${}()|[\]\\]/.test(pattern);
+  if (hasRegexChars) {
+    try { return new RegExp(pattern, 'i').test(value); }
+    catch { return value.toLowerCase().includes(pattern.toLowerCase()); }
+  }
+  return value.toLowerCase() === pattern.toLowerCase();
+}
+
 class TriggerInterceptor {
   constructor() {
     this.rules = [];
@@ -98,19 +107,15 @@ class TriggerInterceptor {
         if (!inp) return { found: false };
         const val = inp.value || '';
         let found = val.length > 0;
-        if (checkValue) {
-          try { found = new RegExp(checkValue, 'i').test(val); } catch { found = val.includes(checkValue); }
-        }
+        if (checkValue) found = matchValue(checkValue, val);
         return { found, selector, elementCount: found ? 1 : 0, sampleText: val };
       }
       case 'select': {
-        const sel = document.querySelector(selector);
-        if (!sel) return { found: false };
-        const val = sel.value || '';
+        const selEl = document.querySelector(selector);
+        if (!selEl) return { found: false };
+        const val = selEl.value || '';
         let found = val.length > 0;
-        if (checkValue) {
-          try { found = new RegExp(checkValue, 'i').test(val); } catch { found = val.includes(checkValue); }
-        }
+        if (checkValue) found = matchValue(checkValue, val);
         return { found, selector, elementCount: found ? 1 : 0, sampleText: val };
       }
     }
