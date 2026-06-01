@@ -28,6 +28,7 @@
         "src/content/auto-refresh.js",
         "src/content/element-picker.js",
         "src/content/network-interceptor.js",
+        "src/content/trigger-interceptor.js",
         "src/content/content.js"
       ],
       "run_at": "document_idle"

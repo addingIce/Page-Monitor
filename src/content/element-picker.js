@@ -70,10 +70,13 @@ class ElementPicker {
     this.hideOverlay();
     this.cleanup();
 
+    // Detect element type
+    const elType = this.detectType(el);
+
     // Send result to service worker so popup can retrieve it
     chrome.runtime.sendMessage({
       type: 'PICK_RESULT',
-      payload: { selector },
+      payload: { selector, elType },
     }).catch(() => {});
   }
 
@@ -94,6 +97,28 @@ class ElementPicker {
     document.removeEventListener('click', this._onClick, true);
     document.removeEventListener('keydown', this._onKeyDown, true);
     document.body.style.cursor = '';
+  }
+
+  detectType(el) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input') {
+      const t = (el.type || 'text').toLowerCase();
+      return (t === 'checkbox' || t === 'radio') ? 'checkbox' : 'input';
+    }
+    if (tag === 'select') return 'select';
+    if (tag === 'textarea') return 'input';
+    // Check if it's a label/container for a checkbox or input
+    const inner = el.querySelector('input, select, textarea');
+    if (inner) {
+      const itag = inner.tagName.toLowerCase();
+      if (itag === 'input') {
+        const it = (inner.type || 'text').toLowerCase();
+        return (it === 'checkbox' || it === 'radio') ? 'checkbox' : 'input';
+      }
+      if (itag === 'select') return 'select';
+      if (itag === 'textarea') return 'input';
+    }
+    return 'element';
   }
 
   generateBestSelector(el) {

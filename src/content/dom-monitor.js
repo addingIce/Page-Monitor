@@ -1,18 +1,13 @@
 function getVisibleText(el) {
   if (!el) return '';
-  // For leaf elements, just use textContent
   if (!el.children || el.children.length === 0) {
     return (el.textContent || '').trim().substring(0, 200);
   }
-  // Try direct text nodes first
   let text = '';
   for (const node of el.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      text += ' ' + node.textContent;
-    }
+    if (node.nodeType === Node.TEXT_NODE) text += ' ' + node.textContent;
   }
   if (text.trim()) return text.trim().substring(0, 200);
-  // Fallback: use innerText (what user sees) for containers with no direct text
   return (el.innerText || '').trim().substring(0, 200);
 }
 
@@ -22,28 +17,37 @@ class DomMonitor {
     this.observer = null;
     this._checkTimer = null;
     this.debounceMs = 200;
+    this._lastState = {};
+    this._paused = false;
+
+    // Always listen for form events (MutationObserver doesn't detect value changes)
+    this._formListener = () => {
+      if (this.rules.length > 0 && !this._paused) this.scheduleCheck();
+    };
+    document.addEventListener('input', this._formListener, true);
+    document.addEventListener('change', this._formListener, true);
   }
 
   start(rules, pageUrl) {
-    this.rules = rules.filter(r => r.domSelector && r.enabled);
+    this.rules = rules.filter(r => {
+      const hasTargets = r.domTargets?.length;
+      const hasLegacy = r.domSelector && !hasTargets;
+      return r.enabled && (hasTargets || hasLegacy);
+    });
     if (this.rules.length === 0) {
-      console.log('[PageMonitor] DomMonitor: no rules with domSelector');
+      console.log('[PageMonitor] DomMonitor: no rules with dom targets');
       return;
     }
     console.log('[PageMonitor] DomMonitor starting with', this.rules.length, 'rules on', pageUrl || location.href);
-    for (const r of this.rules) {
-      console.log('[PageMonitor]   watching:', r.domSelector, 'mode:', r.domCheckMode, 'url:', r.url);
+
+    if (!this.observer) {
+      this.observer = new MutationObserver(() => this.scheduleCheck());
+      this.observer.observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true,
+        attributeFilter: ['class', 'style'],
+      });
     }
 
-    this.observer = new MutationObserver(() => this.scheduleCheck());
-    this.observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style'],
-    });
-
-    // Initial check
     this.checkAllRules();
   }
 
@@ -53,41 +57,138 @@ class DomMonitor {
   }
 
   checkAllRules() {
+    if (this._paused) return;
+
     for (const rule of this.rules) {
-      let elements = Array.from(document.querySelectorAll(rule.domSelector));
+      // Get targets: new format or legacy
+      const targets = rule.domTargets?.length ? rule.domTargets
+        : rule.domSelector ? [{ selector: rule.domSelector, type: 'element', checkMode: rule.domCheckMode || 'presence' }]
+        : [];
+      if (!targets.length) continue;
 
-      // Apply text filter if specified
-      if (rule.textFilter) {
-        const filter = rule.textFilter.toLowerCase();
-        elements = elements.filter(el =>
-          (el.textContent || '').toLowerCase().includes(filter)
-        );
-      }
-
-      const found = elements.length > 0;
-      const shouldReport = rule.domCheckMode === 'presence' ? found : !found;
-
-      console.log('[PageMonitor] check:', rule.domSelector,
-        'found:', elements.length,
-        (rule.textFilter ? `(text filter: "${rule.textFilter}") ` : ''),
-        'shouldReport:', shouldReport);
-
-      if (shouldReport) {
-        // Execute detection action first (e.g., click button)
-        this.executeAction(rule);
-        // One-shot cooldown bypass: only for the detection immediately after auto-refresh
-        const refreshTriggered = !!window.__autoRefreshTriggered;
-        if (refreshTriggered) window.__autoRefreshTriggered = false;
-        const hasDetectionAction = !!(rule.detectionAction?.enabled && rule.detectionAction?.buttonSelector);
-        const bypassCooldown = refreshTriggered || hasDetectionAction;
-        this.reportDetection(rule, {
-          type: 'dom',
-          selector: rule.domSelector,
-          elementCount: elements.length,
-          sampleText: getVisibleText(elements[0]) || '',
-        }, bypassCooldown);
+      for (const target of targets) {
+        this.checkTarget(rule, target);
       }
     }
+  }
+
+  checkTarget(rule, target) {
+    const selector = target.selector || '';
+    const type = target.type || 'element';
+    const checkMode = target.checkMode || 'presence';
+    const checkValue = target.checkValue || '';
+    const textFilter = target.textFilter || '';
+    if (!selector) return;
+
+    const tid = rule.id + '|' + (target.id || selector);
+    let found = false;
+    let sampleText = '';
+    let detailInfo = '';
+    let matchCount = 0;
+
+    switch (type) {
+      case 'element': {
+        const allEls = document.querySelectorAll(selector);
+        let elements = Array.from(allEls);
+        if (textFilter && textFilter.trim()) {
+          const tf = textFilter.trim().toLowerCase();
+          elements = elements.filter(el => (el.textContent || '').toLowerCase().includes(tf));
+        }
+        matchCount = elements.length;
+        found = matchCount > 0;
+        sampleText = getVisibleText(elements[0]) || '';
+        detailInfo = found ? `${matchCount}个匹配` : '无匹配';
+        if (textFilter && textFilter.trim()) detailInfo += ` (文本: "${textFilter}")`;
+        console.log('[PageMonitor] element check:', selector, 'all:', allEls.length, 'filtered:', matchCount, 'textFilter:', textFilter || '(none)');
+        break;
+      }
+
+      case 'checkbox':
+        // Check checkbox checked state
+        const cb = document.querySelector(selector);
+        if (!cb) { found = false; detailInfo = '无匹配元素'; break; }
+        const isChecked = cb.checked === true;
+        found = (checkMode === 'checked') ? isChecked : !isChecked;
+        sampleText = cb.value || cb.name || cb.id || '';
+        detailInfo = isChecked ? '已勾选' : '未勾选';
+        break;
+
+      case 'input': {
+        const inp = document.querySelector(selector);
+        if (!inp) { found = false; detailInfo = '无匹配元素'; break; }
+        const val = inp.value || '';
+        if (checkValue) {
+          try {
+            found = new RegExp(checkValue, 'i').test(val);
+          } catch {
+            found = val.includes(checkValue);
+          }
+        } else {
+          found = val.length > 0;
+        }
+        sampleText = val;
+        detailInfo = `值为: "${val.substring(0, 50)}"`;
+        console.log('[PageMonitor] input check:', selector, 'val:', val, 'checkValue:', checkValue, 'found:', found);
+        break;
+      }
+
+      case 'select':
+        // Check select value
+        const sel = document.querySelector(selector);
+        if (!sel) { found = false; detailInfo = '无匹配元素'; break; }
+        const selVal = sel.value || '';
+        if (checkValue) {
+          try {
+            found = new RegExp(checkValue, 'i').test(selVal);
+          } catch {
+            found = selVal.includes(checkValue);
+          }
+        } else {
+          found = selVal.length > 0;
+        }
+        sampleText = selVal;
+        detailInfo = `选中: ${selVal}`;
+        break;
+    }
+
+    // matchCount fallback for non-element types
+    if (type !== 'element') matchCount = found ? 1 : 0;
+
+    // Build fingerprint
+    const fp = type + '|' + found + '|' + sampleText.substring(0, 100);
+    const prev = this._lastState[tid] || {};
+    const stateChanged = prev.found === undefined || prev.found !== found;
+    const contentChanged = !stateChanged && prev.fp !== fp;
+    // For presence/checked/value-match modes: only report when actually matched (count > 0)
+    const positiveMatch = (checkMode === 'absence' || checkMode === 'unchecked') ? true : found;
+    const shouldReport = (stateChanged || contentChanged) && positiveMatch;
+
+    console.log('[PageMonitor] target check:', selector, 'type:', type, 'found:', found, 'stateChanged:', stateChanged, 'contentChanged:', contentChanged);
+
+    if (shouldReport) {
+      this._lastState[tid] = { found, fp };
+      this.executeAction(rule);
+
+      const refreshTriggered = !!window.__autoRefreshTriggered;
+      if (refreshTriggered) window.__autoRefreshTriggered = false;
+      const hasDetectionAction = !!(rule.detectionAction?.enabled && rule.detectionAction?.buttonSelector);
+      const bypassCooldown = refreshTriggered || hasDetectionAction;
+
+      this.reportDetection(rule, {
+        type: 'dom',
+        target,
+        selector,
+        elementCount: matchCount,
+        sampleText: sampleText || '',
+        detail: detailInfo,
+        targetType: type,
+        targetCheckMode: checkMode,
+      }, bypassCooldown);
+    }
+    // Always update fingerprint
+    this._lastState[tid] = this._lastState[tid] || {};
+    this._lastState[tid].fp = fp;
+    this._lastState[tid].found = found;
   }
 
   executeAction(rule) {
@@ -127,25 +228,37 @@ class DomMonitor {
   }
 
   updateRules(newRules) {
-    this.stop();
-    this.start(newRules, location.href);
+    this._lastState = {};
+    this.rules = newRules.filter(r => {
+      const hasTargets = r.domTargets?.length;
+      const hasLegacy = r.domSelector && !hasTargets;
+      return r.enabled && (hasTargets || hasLegacy);
+    });
+    if (this.rules.length === 0) {
+      this.stop();
+      return;
+    }
+    if (!this.observer) {
+      this.observer = new MutationObserver(() => this.scheduleCheck());
+      this.observer.observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true,
+        attributeFilter: ['class', 'style'],
+      });
+    }
+    this.checkAllRules();
+  }
+
+  pause() { this._paused = true; console.log('[PageMonitor] DomMonitor paused'); }
+  resume() {
+    if (this._paused) { this._paused = false; this._lastState = {}; this.checkAllRules(); console.log('[PageMonitor] DomMonitor resumed'); }
   }
 
   stop() {
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
-    if (this._checkTimer) {
-      clearTimeout(this._checkTimer);
-      this._checkTimer = null;
-    }
-    this.rules = [];
+    if (this.observer) { this.observer.disconnect(); this.observer = null; }
+    if (this._checkTimer) { clearTimeout(this._checkTimer); this._checkTimer = null; }
+    this.rules = []; this._lastState = {}; this._paused = false;
   }
 }
 
-// Static property for current tab ID
 DomMonitor.currentTabId = null;
-
 window.__domMonitor = new DomMonitor();
-// exported via window.__domMonitor

@@ -16,15 +16,21 @@
       return;
     }
     const { rules, settings, tabId } = response;
-    console.log('[PageMonitor] Received', rules.length, 'rules from SW, tabId:', tabId);
+    console.log('[PageMonitor] Received', rules.length, 'rules from SW, tabId:', tabId, 'globalEnabled:', settings?.globalEnabled);
 
-    // Propagate tabId to dom-monitor for sound notifications
     if (tabId && window.__domMonitor) {
       window.__domMonitor.constructor.currentTabId = tabId;
     }
 
+    // Respect global toggle
     if (window.__domMonitor) {
+      if (settings && settings.globalEnabled === false) {
+        window.__domMonitor._paused = true;
+      }
       window.__domMonitor.start(rules, location.href);
+      if (settings && settings.globalEnabled === false) {
+        console.log('[PageMonitor] Monitoring paused (global toggle off)');
+      }
     }
     if (window.__autoRefresh) {
       window.__autoRefresh.start(rules);
@@ -34,6 +40,9 @@
     }
     if (window.__networkInterceptor) {
       window.__networkInterceptor.start(rules);
+    }
+    if (window.__triggerInterceptor) {
+      window.__triggerInterceptor.start(rules);
     }
 
     window.__currentRules = rules;
@@ -51,6 +60,7 @@
         if (window.__domMonitor) window.__domMonitor.updateRules(payload.rules);
         if (window.__autoRefresh) window.__autoRefresh.updateRules(payload.rules);
         if (window.__networkInterceptor) window.__networkInterceptor.updateRules(payload.rules);
+        if (window.__triggerInterceptor) window.__triggerInterceptor.updateRules(payload.rules);
         break;
       }
 
@@ -77,6 +87,18 @@
 
       case 'PERFORM_CHECK': {
         if (window.__domMonitor) window.__domMonitor.checkAllRules();
+        break;
+      }
+
+      case 'PAUSE_MONITORING': {
+        if (window.__domMonitor) window.__domMonitor.pause();
+        if (window.__triggerInterceptor) window.__triggerInterceptor.stop();
+        break;
+      }
+
+      case 'RESUME_MONITORING': {
+        if (window.__domMonitor) window.__domMonitor.resume();
+        if (window.__triggerInterceptor) window.__triggerInterceptor.start(window.__currentRules || []);
         break;
       }
     }

@@ -7,7 +7,7 @@ import {
   createDefaultRule,
 } from './rule-manager.js';
 import { getSettings } from '../utils/storage.js';
-import { notifyStatusDetected } from './notification.js';
+import { notifyStatusDetected, notifyTriggerBlocked } from './notification.js';
 
 async function handleMessage(message, sender) {
   const { type, payload } = message;
@@ -68,6 +68,11 @@ async function handleMessage(message, sender) {
       return { acknowledged: true };
     }
 
+    case 'TRIGGER_BLOCKED': {
+      await notifyTriggerBlocked(payload, sender);
+      return { acknowledged: true };
+    }
+
     case 'START_PICKING': {
       // Forward to content script (fire and forget - popup will close)
       chrome.tabs.sendMessage(payload.tabId, {
@@ -91,6 +96,19 @@ async function handleMessage(message, sender) {
 
     case 'PICK_RESULT': {
       await chrome.storage.local.set({ _pendingPickResult: payload });
+      return { acknowledged: true };
+    }
+
+    case 'PAUSE_MONITORING':
+    case 'RESUME_MONITORING': {
+      // Broadcast to all tabs
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (!tab.id) continue;
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type, payload: {} });
+        } catch {}
+      }
       return { acknowledged: true };
     }
 

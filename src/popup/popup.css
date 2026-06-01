@@ -358,6 +358,50 @@ body {
   font-size: 11px;
 }
 
+/* DOM target rows */
+.dom-target-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--bg-secondary);
+}
+
+.dom-target-row .target-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dom-target-row .target-header .form-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.dom-target-row .target-header .form-select {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.dom-target-row .target-detail {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  align-items: center;
+}
+
+.dom-target-row .target-detail .form-select,
+.dom-target-row .target-detail .form-input {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.dom-target-row .target-detail .form-input {
+  flex: 1;
+  min-width: 60px;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;

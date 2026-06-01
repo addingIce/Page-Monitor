@@ -51,34 +51,21 @@
           </select>
         </div>
 
-        <div class="form-divider">DOM 监控</div>
+        <div class="form-divider">DOM 监控目标</div>
 
-        <div class="form-group">
-          <label>CSS 选择器</label>
-          <div class="selector-row">
-            <input type="text" id="rule-selector" class="form-input" placeholder=".status-failed">
-            <button type="button" id="pick-element-btn" class="btn btn-outline btn-sm">选取</button>
-            <button type="button" id="scan-elements-btn" class="btn btn-outline btn-sm">推荐</button>
-          </div>
+        <div id="dom-targets">
+          <!-- target rows added dynamically -->
+        </div>
+
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <button type="button" id="add-dom-target-btn" class="btn btn-link btn-sm">+ 添加监控目标</button>
+          <button type="button" id="scan-elements-btn" class="btn btn-outline btn-sm" style="margin-left:auto">推荐</button>
         </div>
 
         <!-- Smart recommendations -->
         <div id="recommendations" class="recommendations" style="display:none">
           <div class="rec-header">推荐元素 <span id="rec-count"></span></div>
           <div id="rec-list" class="rec-list"></div>
-        </div>
-
-        <div class="form-group">
-          <label for="rule-dom-mode">检测模式</label>
-          <select id="rule-dom-mode" class="form-select">
-            <option value="presence">元素存在时触发</option>
-            <option value="absence">元素消失时触发</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="rule-text-filter">文本过滤（可选，只匹配包含此文本的元素）</label>
-          <input type="text" id="rule-text-filter" class="form-input" placeholder="如：未完成（留空则不过滤文本）">
         </div>
 
         <div class="form-divider">API 监控（可选）</div>
@@ -97,6 +84,11 @@
           </div>
         </div>
         <button type="button" id="add-endpoint-btn" class="btn btn-link btn-sm">+ 添加 API 端点</button>
+
+        <div class="form-divider">触发拦截（可选）</div>
+        <div id="block-triggers">
+        </div>
+        <button type="button" id="add-trigger-btn" class="btn btn-link btn-sm">+ 添加触发按钮</button>
 
         <div class="form-divider">自动刷新</div>
 

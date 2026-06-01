@@ -72,9 +72,21 @@ function buildMessage(detectionType, details, rule, pageUrl) {
 
   // Default format
   if (detectionType === 'dom') {
-    let msg = `DOM 匹配: ${details.selector}`;
-    if (details.elementCount > 0) msg += ` (${details.elementCount} 个元素)`;
-    if (details.sampleText) msg += `\n示例: ${details.sampleText}`;
+    const t = details.targetType || 'element';
+    let msg = `[${rule.name}] `;
+    if (t === 'element') {
+      msg += `匹配: ${details.selector}`;
+      if (details.elementCount > 0) msg += ` (${details.elementCount} 个)`;
+    } else if (t === 'checkbox') {
+      msg += `${details.selector} ${details.detail || ''}`;
+    } else if (t === 'input') {
+      msg += `输入框 ${details.selector} ${details.detail || ''}`;
+    } else if (t === 'select') {
+      msg += `下拉框 ${details.selector} ${details.detail || ''}`;
+    } else {
+      msg += `${details.selector} - ${details.detail || ''}`;
+    }
+    if (details.sampleText) msg += `\n内容: ${details.sampleText}`;
     return msg;
   }
   if (detectionType === 'network') {
@@ -102,4 +114,38 @@ function fillTemplate(template, rule, details, pageUrl) {
   return result;
 }
 
-export { notifyStatusDetected };
+async function notifyTriggerBlocked(payload, sender) {
+  const { ruleId, ruleName, ruleNotificationMethod, ruleNotificationTemplate, triggerSelector, details } = payload;
+  console.log('[PageMonitor] Trigger blocked:', { ruleName, triggerSelector, details });
+
+  const title = ruleName || 'Page Monitor';
+  let message;
+  // details is now an array of matched targets
+  const matches = Array.isArray(details) ? details : [details];
+  const totalCount = matches.reduce((sum, m) => sum + (m.elementCount || (m.found ? 1 : 0)), 0);
+
+  if (ruleNotificationTemplate) {
+    const first = matches[0] || {};
+    message = fillTemplate(ruleNotificationTemplate, { name: ruleName }, {
+      selector: triggerSelector,
+      sampleText: first.sampleText || '',
+      elementCount: totalCount,
+    }, payload.url || '');
+    message = `[拦截] ${message}`;
+  } else {
+    const lines = matches.map(m => `  · ${m.selector}: ${m.sampleText || '匹配'} (${m.elementCount || 1}个)`).join('\n');
+    message = `⚠️ 操作已拦截\n触发的按钮: ${triggerSelector}\n匹配了 ${matches.length} 个目标 (共${totalCount}个元素):\n${lines}`;
+  }
+
+  if (ruleNotificationMethod === 'system' || ruleNotificationMethod === 'both') {
+    await chrome.notifications.create({
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title,
+      message,
+      priority: 2,
+    });
+  }
+}
+
+export { notifyStatusDetected, notifyTriggerBlocked };

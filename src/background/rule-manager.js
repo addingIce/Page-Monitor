@@ -11,7 +11,6 @@ import { generateId } from '../utils/id-generator.js';
 function validateRule(rule) {
   if (!rule.name || typeof rule.name !== 'string') throw new Error('规则名称不能为空');
   if (!rule.url || typeof rule.url !== 'string') throw new Error('监控 URL 不能为空');
-  if (rule.domSelector && typeof rule.domSelector !== 'string') throw new Error('CSS 选择器格式无效');
   return rule;
 }
 
@@ -22,8 +21,7 @@ function createDefaultRule(overrides = {}) {
     enabled: true,
     url: '',
     urlMatchMode: 'contains',
-    domSelector: '',
-    domCheckMode: 'presence',
+    domTargets: [],
     apiEndpoints: [],
     notificationMethod: 'system',
     cooldownMs: 60000,
