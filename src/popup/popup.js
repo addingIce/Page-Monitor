@@ -122,6 +122,40 @@ function bindEvents() {
     chrome.runtime.sendMessage({ type: settings.globalEnabled ? 'RESUME_MONITORING' : 'PAUSE_MONITORING' }).catch(()=>{});
   });
 
+  // Export config
+  $('export-btn').addEventListener('click', async () => {
+    const data = await chrome.storage.local.get(['rules', 'settings']);
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `page-monitor-config-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Import config
+  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.rules && !data.settings) throw new Error('无效的配置文件');
+      if (!confirm(`导入 ${(data.rules||[]).length} 条规则和设置，是否覆盖当前配置？`)) return;
+      if (data.rules) await chrome.storage.local.set({ rules: data.rules });
+      if (data.settings) await chrome.storage.local.set({ settings: data.settings });
+      await loadStorage();
+      renderList();
+      alert('导入成功');
+    } catch (err) {
+      alert('导入失败: ' + err.message);
+    }
+    e.target.value = '';
+  });
+
   $('add-rule-btn').addEventListener('click', async () => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     showForm(null, tabs[0]?.url || '');
@@ -210,6 +244,12 @@ function addTargetRow(data) {
   `;
 
   $('dom-targets').appendChild(row);
+
+  // Explicitly set values via .value to avoid escaping issues
+  const selInput = row.querySelector(`#${id}-selector`);
+  if (selInput) selInput.value = data.selector || '';
+  const tfInput = row.querySelector(`#${id}-textfilter`);
+  if (tfInput) tfInput.value = data.textFilter || '';
 
   // Wire events
   const typeSelect = row.querySelector(`#${id}-type`);
@@ -475,6 +515,8 @@ function addTriggerRow(data) {
   `;
 
   $('block-triggers').appendChild(row);
+  const trigSel = row.querySelector(`#${id}-selector`);
+  if (trigSel) trigSel.value = data.selector || '';
   row.querySelector('.pick-target').addEventListener('click', () => startPicking(id + '-selector'));
   row.querySelector('.remove-target').addEventListener('click', () => {
     if ($('block-triggers').children.length > 0) row.remove();
@@ -578,7 +620,9 @@ function ago(ts) {
 
 function esc(s) {
   if (s === null || s === undefined) return '';
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

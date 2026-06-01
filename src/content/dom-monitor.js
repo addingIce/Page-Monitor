@@ -48,25 +48,32 @@ class DomMonitor {
 
   start(rules, pageUrl) {
     this.rules = rules.filter(r => {
-      const hasTargets = r.domTargets?.length;
+      const hasTargets = r.domTargets?.length > 0;
       const hasLegacy = r.domSelector && !hasTargets;
-      return r.enabled && (hasTargets || hasLegacy);
+      const keep = r.enabled && (hasTargets || hasLegacy);
+      console.log('[PageMonitor] filter rule:', r.name, 'enabled:', r.enabled, 'targets:', r.domTargets?.length, 'hasLegacy:', hasLegacy, 'keep:', keep);
+      return keep;
     });
     if (this.rules.length === 0) {
       console.log('[PageMonitor] DomMonitor: no rules with dom targets');
       return;
     }
-    console.log('[PageMonitor] DomMonitor starting with', this.rules.length, 'rules on', pageUrl || location.href);
+    console.log('[PageMonitor] DomMonitor starting with', this.rules.length, 'rules');
 
     if (!this.observer) {
       this.observer = new MutationObserver(() => this.scheduleCheck());
       this.observer.observe(document.documentElement, {
         childList: true, subtree: true, attributes: true,
-        attributeFilter: ['class', 'style'],
       });
     }
 
     this.checkAllRules();
+    // Repeated re-checks for async-populated content
+    let delay = 1;
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => { if (this.rules.length > 0) this.checkAllRules(); }, delay * 1000);
+      delay = Math.min(delay * 1.5, 10);
+    }
   }
 
   scheduleCheck() {
@@ -76,7 +83,9 @@ class DomMonitor {
 
   checkAllRules() {
     if (this._paused) return;
+    if (this.rules.length === 0) { console.log('[PageMonitor] checkAllRules skipped: no rules'); return; }
 
+    console.log('[PageMonitor] checkAllRules running,', this.rules.length, 'rules');
     for (const rule of this.rules) {
       // Get targets: new format or legacy
       const targets = rule.domTargets?.length ? rule.domTargets
@@ -169,9 +178,9 @@ class DomMonitor {
     const prev = this._lastState[tid] || {};
     const stateChanged = prev.found === undefined || prev.found !== found;
     const contentChanged = !stateChanged && prev.fp !== fp;
-    // For presence/checked/value-match modes: only report when actually matched (count > 0)
-    const positiveMatch = (checkMode === 'absence' || checkMode === 'unchecked') ? true : found;
-    const shouldReport = (stateChanged || contentChanged) && positiveMatch;
+    // For absence mode, found=false means "element absent" which IS the trigger condition
+    const effectiveFound = (checkMode === 'absence') ? !found : found;
+    const shouldReport = (stateChanged || contentChanged) && effectiveFound;
 
     console.log('[PageMonitor] target check:', selector, 'type:', type, 'found:', found, 'stateChanged:', stateChanged, 'contentChanged:', contentChanged);
 
@@ -252,7 +261,6 @@ class DomMonitor {
       this.observer = new MutationObserver(() => this.scheduleCheck());
       this.observer.observe(document.documentElement, {
         childList: true, subtree: true, attributes: true,
-        attributeFilter: ['class', 'style'],
       });
     }
     this.checkAllRules();

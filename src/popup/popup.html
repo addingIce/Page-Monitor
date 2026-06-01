@@ -21,8 +21,13 @@
     <section id="rule-list-section" class="section">
       <div class="section-header">
         <h2>监控规则</h2>
-        <button id="add-rule-btn" class="btn btn-primary btn-sm">+ 新建</button>
+        <div style="display:flex;gap:4px">
+          <button id="export-btn" class="btn btn-outline btn-sm" title="导出配置">导出</button>
+          <button id="import-btn" class="btn btn-outline btn-sm" title="导入配置">导入</button>
+          <button id="add-rule-btn" class="btn btn-primary btn-sm">+ 新建</button>
+        </div>
       </div>
+      <input type="file" id="import-file" accept=".json" style="display:none">
       <div id="rule-list" class="rule-list">
         <div class="empty-state">暂无规则，点击「+ 新建」创建</div>
       </div>

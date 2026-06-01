@@ -2,59 +2,74 @@ class ElementPicker {
   constructor() {
     this.active = false;
     this.hoverEl = null;
-    this.overlay = null;
+    this.highlight = null;
+    this.blocker = null;
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onClick = this._onClick.bind(this);
     this._onKeyDown = this._onKeyDown.bind(this);
   }
 
   init() {
-    // Create overlay element hidden by default
-    this.overlay = document.createElement('div');
-    this.overlay.id = '__page-monitor-overlay';
-    this.overlay.style.cssText = `
-      position: fixed;
-      pointer-events: none;
-      z-index: 2147483647;
-      background: rgba(66, 133, 244, 0.2);
-      border: 2px solid rgba(66, 133, 244, 0.8);
-      display: none;
-      transition: all 0.1s ease;
+    // Full-page transparent blocker — intercepts ALL clicks
+    this.blocker = document.createElement('div');
+    this.blocker.id = '__pm-blocker';
+    this.blocker.style.cssText = `
+      position: fixed; inset: 0; z-index: 2147483646;
+      cursor: crosshair; display: none;
     `;
-    document.body.appendChild(this.overlay);
+
+    // Highlight rectangle
+    this.highlight = document.createElement('div');
+    this.highlight.id = '__pm-highlight';
+    this.highlight.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 2147483647;
+      background: rgba(66,133,244,0.2); border: 2px solid rgba(66,133,244,0.8);
+      display: none; transition: all 0.08s ease;
+    `;
+
+    document.body.appendChild(this.highlight);
+    document.body.appendChild(this.blocker);
+
+    this.blocker.addEventListener('mousemove', this._onMouseMove);
+    this.blocker.addEventListener('click', this._onClick);
   }
 
   start() {
     if (this.active) return;
     this.active = true;
-    document.addEventListener('mousemove', this._onMouseMove, true);
-    document.addEventListener('click', this._onClick, true);
     document.addEventListener('keydown', this._onKeyDown, true);
-    document.body.style.cursor = 'crosshair';
+    this.blocker.style.display = 'block';
   }
 
   stop() {
     this.active = false;
-    this.hideOverlay();
-    document.removeEventListener('mousemove', this._onMouseMove, true);
-    document.removeEventListener('click', this._onClick, true);
+    this.hideHighlight();
     document.removeEventListener('keydown', this._onKeyDown, true);
-    document.body.style.cursor = '';
+    this.blocker.style.display = 'none';
   }
 
   _onMouseMove(e) {
-    if (!this.active) return;
+    // Hide blocker temporarily to find element underneath
+    this.blocker.style.display = 'none';
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (el === this.hoverEl || !el) return;
-    if (el === this.overlay || el.id === '__page-monitor-overlay') return;
+    this.blocker.style.display = 'block';
 
-    this.hoverEl = el;
-    const rect = el.getBoundingClientRect();
-    this.overlay.style.display = 'block';
-    this.overlay.style.left = rect.left + 'px';
-    this.overlay.style.top = rect.top + 'px';
-    this.overlay.style.width = rect.width + 'px';
-    this.overlay.style.height = rect.height + 'px';
+    if (!el || el === this.highlight || el.id === '__pm-highlight' ||
+        el === this.blocker || el.id === '__pm-blocker' ||
+        el === document.body || el === document.documentElement) {
+      this.hideHighlight();
+      return;
+    }
+
+    const resolved = this.resolveToInput(el);
+    if (resolved === this.hoverEl) return;
+    this.hoverEl = resolved;
+    const r = resolved.getBoundingClientRect();
+    this.highlight.style.display = 'block';
+    this.highlight.style.left = r.left + 'px';
+    this.highlight.style.top = r.top + 'px';
+    this.highlight.style.width = r.width + 'px';
+    this.highlight.style.height = r.height + 'px';
   }
 
   _onClick(e) {
@@ -62,18 +77,23 @@ class ElementPicker {
     e.preventDefault();
     e.stopPropagation();
 
-    const el = this.hoverEl;
-    if (!el) return;
+    let el = this.hoverEl;
+    if (!el) {
+      // Fallback: find element at click position
+      this.blocker.style.display = 'none';
+      el = document.elementFromPoint(e.clientX, e.clientY);
+      this.blocker.style.display = 'block';
+      if (el) el = this.resolveToInput(el);
+    }
+    if (!el || el === this.highlight || el === this.blocker ||
+        el === document.body || el === document.documentElement) return;
 
     const selector = this.generateBestSelector(el);
-
-    this.hideOverlay();
-    this.cleanup();
-
-    // Detect element type
     const elType = this.detectType(el);
 
-    // Send result to service worker so popup can retrieve it
+    this.hideHighlight();
+    this.stop();
+
     chrome.runtime.sendMessage({
       type: 'PICK_RESULT',
       payload: { selector, elType },
@@ -82,21 +102,29 @@ class ElementPicker {
 
   _onKeyDown(e) {
     if (e.key === 'Escape' && this.active) {
-      this.cleanup();
+      this.stop();
     }
   }
 
-  hideOverlay() {
-    if (this.overlay) this.overlay.style.display = 'none';
-    this.hoverEl = null;
+  // If element is a label or wrapper, find the actual radio/checkbox inside
+  resolveToInput(el) {
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return el;
+    if (el.tagName === 'LABEL') {
+      const forId = el.getAttribute('for');
+      if (forId) {
+        const target = document.getElementById(forId);
+        if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return target;
+      }
+    }
+    const inner = el.querySelector('input[type="radio"], input[type="checkbox"]');
+    if (inner) return inner;
+    if (el.getAttribute('role') === 'radio' || el.getAttribute('role') === 'checkbox') return el;
+    return el;
   }
 
-  cleanup() {
-    this.active = false;
-    document.removeEventListener('mousemove', this._onMouseMove, true);
-    document.removeEventListener('click', this._onClick, true);
-    document.removeEventListener('keydown', this._onKeyDown, true);
-    document.body.style.cursor = '';
+  hideHighlight() {
+    if (this.highlight) this.highlight.style.display = 'none';
+    this.hoverEl = null;
   }
 
   detectType(el) {
@@ -107,7 +135,6 @@ class ElementPicker {
     }
     if (tag === 'select') return 'select';
     if (tag === 'textarea') return 'input';
-    // Check if it's a label/container for a checkbox or input
     const inner = el.querySelector('input, select, textarea');
     if (inner) {
       const itag = inner.tagName.toLowerCase();
@@ -121,41 +148,35 @@ class ElementPicker {
     return 'element';
   }
 
-  generateBestSelector(el) {
-    // Strategy 1: Use id
-    if (el.id) return `#${CSS.escape(el.id)}`;
+  // --- Selector generation (unchanged) ---
 
-    // Strategy 2: Use data-testid or other stable data attributes
+  generateBestSelector(el) {
+    if (el.id) return `#${CSS.escape(el.id)}`;
     const stableAttrs = ['data-testid', 'data-test-id', 'data-cy', 'data-tid', 'data-qa'];
     for (const attr of stableAttrs) {
       const val = el.getAttribute(attr);
       if (val) return `[${attr}="${CSS.escape(val)}"]`;
     }
-
-    // Strategy 3: Use all non-utility classes
+    if ((el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) && el.name && el.value) {
+      const attrSel = `input[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]`;
+      if (document.querySelectorAll(attrSel).length === 1) return attrSel;
+    }
     const meaningfulClasses = this.filterMeaningfulClasses(el);
     if (meaningfulClasses.length > 0) {
-      // Try all meaningful classes
       const allClasses = meaningfulClasses.map(c => `.${CSS.escape(c)}`).join('');
       const allSel = `${el.tagName.toLowerCase()}${allClasses}`;
       if (document.querySelectorAll(allSel).length === 1) return allSel;
-
-      // Try first 2 classes
       if (meaningfulClasses.length >= 2) {
         const two = meaningfulClasses.slice(0, 2).map(c => `.${CSS.escape(c)}`).join('');
         const twoSel = `${el.tagName.toLowerCase()}${two}`;
         if (document.querySelectorAll(twoSel).length <= 3) return twoSel;
       }
-
-      // Try best 1 class (prefer status-like)
       const best = this.pickBestClass(el);
       if (best) {
         const sel = `${el.tagName.toLowerCase()}.${CSS.escape(best)}`;
         if (document.querySelectorAll(sel).length === 1) return sel;
       }
     }
-
-    // Strategy 4: Find nearest identifiable ancestor and build relative path
     const ancestor = this.findAnchorAncestor(el);
     if (ancestor) {
       const ancSel = this.generateBestSelector(ancestor);
@@ -164,20 +185,14 @@ class ElementPicker {
         if (relPath) return ancSel + ' ' + relPath;
       }
     }
-
-    // Strategy 5: Short path (max 4 levels)
     return this.buildShortPath(el);
   }
 
   filterMeaningfulClasses(el) {
-    // Filter out utility/framework-generated classes
     const utilityPatterns = [
-      // Bootstrap-style utilities
       /^[mp][tblrxy]?-\d+$/,
       /^(d-|flex-|justify-|align-|text-|bg-|border-|rounded-|shadow-|w-|h-|p-[0-9]|m-[0-9]|gap-|col-|row-|offset-|order-)/,
-      // Tailwind-style utilities
       /^(tw-|sm:|md:|lg:|xl:|hover:|focus:|active:)/,
-      // Framework-generated
       /^(ng-|css-|s-|scoped-|v-|react-|_|data-v-)/,
     ];
     return Array.from(el.classList).filter(c =>
@@ -199,9 +214,7 @@ class ElementPicker {
     while (current && current !== document.body) {
       if (current.id) return current;
       if (current.getAttribute('data-testid') || current.getAttribute('data-cy')) return current;
-      // Semantic elements make good anchors
       if (['SECTION', 'MAIN', 'ARTICLE', 'NAV', 'ASIDE', 'HEADER', 'FOOTER'].includes(current.tagName)) {
-        // Check if it's identifiable
         if (current.classList.length > 0 || current.id) return current;
       }
       current = current.parentElement;
@@ -240,12 +253,10 @@ class ElementPicker {
     let current = el;
     let levels = 0;
     const maxLevels = 4;
-
     while (current && current !== document.body && current !== document.documentElement && levels < maxLevels) {
       const tag = current.tagName.toLowerCase();
       const parent = current.parentElement;
       if (!parent) { parts.unshift(tag); break; }
-
       const meaningful = this.filterMeaningfulClasses(current);
       if (meaningful.length > 0) {
         parts.unshift(`${tag}.${CSS.escape(meaningful[0])}`);
@@ -268,4 +279,3 @@ class ElementPicker {
 }
 
 window.__elementPicker = new ElementPicker();
-// exported via window.__elementPicker

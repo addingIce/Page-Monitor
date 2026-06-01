@@ -1,20 +1,25 @@
 // Content script entry point - coordinates all monitoring modules
 (function init() {
   console.log('[PageMonitor] Content script loaded on:', location.href);
+  requestRules(0);
 
-  // Send ready signal to service worker, receive active rules
-  chrome.runtime.sendMessage({
-    type: 'CONTENT_SCRIPT_READY',
-    payload: { url: location.href, tabId: null },
-  }, response => {
-    if (chrome.runtime.lastError) {
-      console.warn('[PageMonitor] SW not responding:', chrome.runtime.lastError.message);
-      return;
-    }
-    if (!response) {
-      console.warn('[PageMonitor] Empty response from SW');
-      return;
-    }
+  function requestRules(retryCount) {
+    chrome.runtime.sendMessage({
+      type: 'CONTENT_SCRIPT_READY',
+      payload: { url: location.href, tabId: null },
+    }, response => {
+      if (chrome.runtime.lastError || !response) {
+        console.warn('[PageMonitor] SW not responding, retry:', retryCount);
+        if (retryCount < 3) {
+          setTimeout(() => requestRules(retryCount + 1), (retryCount + 1) * 1000);
+        }
+        return;
+      }
+      setupMonitors(response);
+    });
+  }
+
+  function setupMonitors(response) {
     const { rules, settings, tabId } = response;
     console.log('[PageMonitor] Received', rules.length, 'rules from SW, tabId:', tabId, 'globalEnabled:', settings?.globalEnabled);
 
@@ -22,7 +27,6 @@
       window.__domMonitor.constructor.currentTabId = tabId;
     }
 
-    // Respect global toggle
     if (window.__domMonitor) {
       if (settings && settings.globalEnabled === false) {
         window.__domMonitor._paused = true;
@@ -32,22 +36,14 @@
         console.log('[PageMonitor] Monitoring paused (global toggle off)');
       }
     }
-    if (window.__autoRefresh) {
-      window.__autoRefresh.start(rules);
-    }
-    if (window.__elementPicker) {
-      window.__elementPicker.init();
-    }
-    if (window.__networkInterceptor) {
-      window.__networkInterceptor.start(rules);
-    }
-    if (window.__triggerInterceptor) {
-      window.__triggerInterceptor.start(rules);
-    }
+    if (window.__autoRefresh) window.__autoRefresh.start(rules);
+    if (window.__elementPicker) window.__elementPicker.init();
+    if (window.__networkInterceptor) window.__networkInterceptor.start(rules);
+    if (window.__triggerInterceptor) window.__triggerInterceptor.start(rules);
 
     window.__currentRules = rules;
     window.__currentSettings = settings;
-  });
+  }
 
   // Listen for messages from the service worker
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
