@@ -238,7 +238,7 @@ function addTargetRow(data) {
     </div>
     <div class="target-detail" id="${id}-detail">
     </div>
-    <div class="target-detail">
+    <div class="target-detail" id="${id}-textfilter-wrap" style="display:${(data.type||'element')==='element'?'flex':'none'}">
       <input type="text" id="${id}-textfilter" class="form-input" placeholder="文本过滤（可选，只匹配包含此文本的元素）" value="${esc(data.textFilter||'')}">
     </div>
   `;
@@ -269,6 +269,10 @@ function updateTargetDetail(id, data) {
   const type = data?.type || $(`${id}-type`)?.value || 'element';
   const detail = $(`${id}-detail`);
   if (!detail) return;
+
+  // Show text filter only for element type
+  const tfWrap = $(`${id}-textfilter-wrap`);
+  if (tfWrap) tfWrap.style.display = type === 'element' ? 'flex' : 'none';
 
   if (type === 'element') {
     detail.innerHTML = `
