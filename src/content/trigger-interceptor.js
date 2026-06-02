@@ -28,6 +28,21 @@ class TriggerInterceptor {
   }
 
   _onClick(e) {
+    // Clear bypasses if clicked elsewhere (not on any bypassed button)
+    const activeKeys = Object.keys(this._bypassMap);
+    if (activeKeys.length > 0) {
+      const hitAnyBypassed = activeKeys.some(key => {
+        // key is "ruleId|selector", split by first '|'
+        const sepIdx = key.indexOf('|');
+        const selector = sepIdx > 0 ? key.slice(sepIdx + 1) : key;
+        return e.target.closest(selector);
+      });
+      if (!hitAnyBypassed) {
+        console.log('[PageMonitor] Bypass cleared (clicked elsewhere)');
+        this._bypassMap = {};
+      }
+    }
+
     // Find which trigger selectors were hit
     const hitTriggers = [];
     for (const rule of this.rules) {
