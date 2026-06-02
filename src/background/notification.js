@@ -137,23 +137,24 @@ async function notifyTriggerBlocked(payload, sender) {
   const totalCount = matches.reduce((sum, m) => sum + (m.elementCount || (m.found ? 1 : 0)), 0);
 
   if (ruleNotificationTemplate) {
-    const first = matches[0] || {};
+    const allTexts = matches.map(m => m.sampleText || '').filter(Boolean).join(', ');
     message = fillTemplate(ruleNotificationTemplate, { name: ruleName }, {
       selector: triggerSelector,
-      sampleText: first.sampleText || '',
+      sampleText: allTexts,
       elementCount: totalCount,
     }, payload.url || '');
     message = `[拦截] ${message}`;
   } else {
-    const lines = matches.map(m => `  · ${m.selector}: ${m.sampleText || '匹配'} (${m.elementCount || 1}个)`).join('\n');
-    message = `⚠️ 操作已拦截\n触发的按钮: ${triggerSelector}\n匹配了 ${matches.length} 个目标 (共${totalCount}个元素):\n${lines}`;
+    const lines = matches.map((m, i) => `  ${i+1}. ${m.sampleText || m.selector?.substring(0, 40)} (${m.elementCount || 1}个)`).join('\n');
+    message = `⚠️ 操作已拦截\n触发按钮: ${triggerSelector}\n匹配 ${matches.length} 个目标 (共${totalCount}个):\n${lines}`;
+    console.log('[PageMonitor] Trigger blocked message:', message);
   }
 
   if (ruleNotificationMethod === 'system' || ruleNotificationMethod === 'both') {
-    const notifId = await chrome.notifications.create({
+    const notifId = await chrome.notifications.create('trigger-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title,
+      title: `[${ruleName}] ` + title,
       message: message + '\n\n点击「忽略」后需重新点击按钮',
       buttons: [{ title: '忽略（需重新点击）' }],
       priority: 2,

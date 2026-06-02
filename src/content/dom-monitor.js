@@ -34,7 +34,7 @@ class DomMonitor {
     this.rules = [];
     this.observer = null;
     this._checkTimer = null;
-    this.debounceMs = 200;
+    this.debounceMs = 300;
     this._lastState = {};
     this._paused = false;
 
@@ -51,7 +51,7 @@ class DomMonitor {
       const hasTargets = r.domTargets?.length > 0;
       const hasLegacy = r.domSelector && !hasTargets;
       const keep = r.enabled && (hasTargets || hasLegacy);
-      console.log('[PageMonitor] filter rule:', r.name, 'enabled:', r.enabled, 'targets:', r.domTargets?.length, 'hasLegacy:', hasLegacy, 'keep:', keep);
+      // console.log('[PageMonitor] filter rule:', r.name, 'enabled:', r.enabled, 'targets:', r.domTargets?.length, 'keep:', keep);
       return keep;
     });
     if (this.rules.length === 0) {
@@ -63,7 +63,7 @@ class DomMonitor {
     if (!this.observer) {
       this.observer = new MutationObserver(() => this.scheduleCheck());
       this.observer.observe(document.documentElement, {
-        childList: true, subtree: true, attributes: true,
+        childList: true, subtree: true,
       });
     }
 
@@ -83,9 +83,7 @@ class DomMonitor {
 
   checkAllRules() {
     if (this._paused) return;
-    if (this.rules.length === 0) { console.log('[PageMonitor] checkAllRules skipped: no rules'); return; }
-
-    console.log('[PageMonitor] checkAllRules running,', this.rules.length, 'rules');
+    if (this.rules.length === 0) return;
     for (const rule of this.rules) {
       // Get targets: new format or legacy
       const targets = rule.domTargets?.length ? rule.domTargets
@@ -126,7 +124,7 @@ class DomMonitor {
         sampleText = getVisibleText(elements[0]) || '';
         detailInfo = found ? `${matchCount}个匹配` : '无匹配';
         if (textFilter && textFilter.trim()) detailInfo += ` (文本: "${textFilter}")`;
-        console.log('[PageMonitor] element check:', selector, 'all:', allEls.length, 'filtered:', matchCount, 'textFilter:', textFilter || '(none)');
+        // console.log('[PageMonitor] element check:', selector, 'all:', allEls.length, 'filtered:', matchCount);
         break;
       }
 
@@ -151,7 +149,7 @@ class DomMonitor {
         }
         sampleText = val;
         detailInfo = `值为: "${val.substring(0, 50)}"`;
-        console.log('[PageMonitor] input check:', selector, 'val:', val, 'checkValue:', checkValue, 'found:', found);
+        // console.log('[PageMonitor] input check:', selector, 'val:', val, 'checkValue:', checkValue, 'found:', found);
         break;
       }
 
@@ -182,7 +180,7 @@ class DomMonitor {
     const effectiveFound = (checkMode === 'absence') ? !found : found;
     const shouldReport = (stateChanged || contentChanged) && effectiveFound;
 
-    console.log('[PageMonitor] target check:', selector, 'type:', type, 'found:', found, 'stateChanged:', stateChanged, 'contentChanged:', contentChanged);
+    if (shouldReport) console.log('[PageMonitor] target check:', selector, 'type:', type, 'found:', found, 'stateChanged:', stateChanged, 'contentChanged:', contentChanged);
 
     if (shouldReport) {
       this._lastState[tid] = { found, fp };
@@ -260,7 +258,7 @@ class DomMonitor {
     if (!this.observer) {
       this.observer = new MutationObserver(() => this.scheduleCheck());
       this.observer.observe(document.documentElement, {
-        childList: true, subtree: true, attributes: true,
+        childList: true, subtree: true,
       });
     }
     this.checkAllRules();

@@ -28,46 +28,57 @@ class TriggerInterceptor {
   }
 
   _onClick(e) {
+    // Find which trigger selectors were hit
+    const hitTriggers = [];
     for (const rule of this.rules) {
       for (const trigger of (rule.blockTriggers || [])) {
         if (!trigger.selector) continue;
-        const btn = e.target.closest(trigger.selector);
-        if (!btn) continue;
-
-        // Check bypass-once: scoped to rule + selector
-        const bypassKey = rule.id + '|' + trigger.selector;
-        if (this._bypassMap[bypassKey]) {
-          console.log('[PageMonitor] Trigger bypass-once, allowing:', bypassKey);
-          delete this._bypassMap[bypassKey];
-          continue;
+        if (e.target.closest(trigger.selector)) {
+          const bypassKey = rule.id + '|' + trigger.selector;
+          if (this._bypassMap[bypassKey]) {
+            console.log('[PageMonitor] Trigger bypass-once, allowing:', bypassKey);
+            delete this._bypassMap[bypassKey];
+          } else {
+            hitTriggers.push({ trigger, rule, bypassKey });
+          }
         }
+      }
+    }
+    if (hitTriggers.length === 0) return;
 
-        console.log('[PageMonitor] Trigger button clicked:', trigger.selector);
+    // Block the click
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
 
-        // Run checks on all dom targets for this rule
-        const matched = this.checkRule(rule);
-        if (matched) {
-          console.log('[PageMonitor] Blocking click! Rule matched:', rule.name, 'targets:', matched.length);
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
+    // Check ALL rules' domTargets (from dom-monitor which has all rules)
+    const allRules = (window.__domMonitor && window.__domMonitor.rules) || window.__currentRules || this.rules;
+    console.log('[PageMonitor] Checking all rules:', allRules.length, 'rules');
+    const blockingRules = [];
+    for (const rule of allRules) {
+      const matched = this.checkRule(rule);
+      console.log('[PageMonitor]   rule:', rule.name, 'matched:', matched ? matched.length : 0);
+      if (matched) {
+        blockingRules.push({ rule, matched, triggerSelector: hitTriggers[0].trigger.selector });
+      }
+    }
 
-          // Report to SW for notification (include all matched targets)
-          chrome.runtime.sendMessage({
-            type: 'TRIGGER_BLOCKED',
-            payload: {
-              ruleId: rule.id,
-              ruleName: rule.name,
-              ruleNotificationMethod: rule.notificationMethod || 'system',
-              ruleNotificationTemplate: rule.notificationTemplate || '',
-              triggerSelector: trigger.selector,
-              url: location.href,
-              timestamp: Date.now(),
-              details: matched, // array of matched targets
-            },
-          }).catch(() => {});
-          return;
-        }
+    if (blockingRules.length > 0) {
+      console.log('[PageMonitor] Blocking click!', blockingRules.length, 'rules matched, details:', blockingRules.map(b => ({ rule: b.rule.name, targets: b.matched.length, totalCount: b.matched.reduce((s,m) => s + (m.elementCount||1), 0) })));
+      for (const { rule, matched, triggerSelector } of blockingRules) {
+        chrome.runtime.sendMessage({
+          type: 'TRIGGER_BLOCKED',
+          payload: {
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleNotificationMethod: rule.notificationMethod || 'system',
+            ruleNotificationTemplate: rule.notificationTemplate || '',
+            triggerSelector,
+            url: location.href,
+            timestamp: Date.now(),
+            details: matched,
+          },
+        }).catch(() => {});
       }
     }
   }
@@ -76,11 +87,12 @@ class TriggerInterceptor {
     const targets = rule.domTargets?.length ? rule.domTargets
       : rule.domSelector ? [{ selector: rule.domSelector, type: 'element', checkMode: rule.domCheckMode || 'presence' }]
       : [];
-    if (!targets.length) return null;
+    console.log('[PageMonitor] checkRule:', rule.name, 'targets:', targets.length);
 
     const matched = [];
     for (const target of targets) {
       const result = this.checkTarget(target);
+      console.log('[PageMonitor]   target:', target.selector, 'type:', target.type, 'found:', result.found, 'count:', result.elementCount);
       if (result.found) matched.push(result);
     }
     return matched.length > 0 ? matched : null;
