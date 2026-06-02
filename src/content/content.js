@@ -70,6 +70,21 @@
         break;
       }
 
+      case 'SHOW_POPUP_WITH_CONFIRM': {
+        showCustomConfirm(payload.title, payload.message, payload.triggerSelector, payload.ruleId);
+        break;
+      }
+
+      case 'BYPASS_ONCE': {
+        console.log('[PageMonitor] Received BYPASS_ONCE:', payload.selector, payload.ruleId);
+        if (window.__triggerInterceptor) {
+          window.__triggerInterceptor.bypassOnce(payload.selector, payload.ruleId);
+        } else {
+          console.warn('[PageMonitor] BYPASS_ONCE: __triggerInterceptor not available');
+        }
+        break;
+      }
+
       case 'START_PICKING': {
         if (window.__elementPicker) window.__elementPicker.start();
         break;
@@ -215,4 +230,28 @@ function generateSelector(el) {
     current = parent;
   }
   return parts.join(' > ');
+}
+
+// Custom confirm dialog with "关闭" / "本次不拦截" buttons
+function showCustomConfirm(title, message, triggerSelector, ruleId) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2147483640;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:8px;padding:20px;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-family:sans-serif;">
+      <div style="font-weight:bold;font-size:14px;margin-bottom:8px;">${title}</div>
+      <div style="font-size:13px;color:#333;white-space:pre-line;margin-bottom:16px;">${message.replace(/\n/g, '<br>')}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="__pm-close" style="padding:6px 16px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;">关闭</button>
+        <button id="__pm-bypass" style="padding:6px 16px;border:none;border-radius:4px;background:#4285f4;color:#fff;cursor:pointer;">忽略（需重新点击）</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#__pm-close').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#__pm-bypass').addEventListener('click', () => {
+    overlay.remove();
+    if (triggerSelector && window.__triggerInterceptor) {
+      window.__triggerInterceptor.bypassOnce(triggerSelector, ruleId);
+    }
+  });
 }

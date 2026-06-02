@@ -12,6 +12,7 @@ class TriggerInterceptor {
     this.rules = [];
     this._onClick = this._onClick.bind(this);
     this._active = false;
+    this._bypassMap = {}; // selector -> true (one-shot bypass for next click)
   }
 
   start(rules) {
@@ -32,6 +33,14 @@ class TriggerInterceptor {
         if (!trigger.selector) continue;
         const btn = e.target.closest(trigger.selector);
         if (!btn) continue;
+
+        // Check bypass-once: scoped to rule + selector
+        const bypassKey = rule.id + '|' + trigger.selector;
+        if (this._bypassMap[bypassKey]) {
+          console.log('[PageMonitor] Trigger bypass-once, allowing:', bypassKey);
+          delete this._bypassMap[bypassKey];
+          continue;
+        }
 
         console.log('[PageMonitor] Trigger button clicked:', trigger.selector);
 
@@ -120,6 +129,12 @@ class TriggerInterceptor {
       }
     }
     return { found: false };
+  }
+
+  bypassOnce(selector, ruleId) {
+    const key = (ruleId || '') + '|' + selector;
+    this._bypassMap[key] = true;
+    console.log('[PageMonitor] Trigger bypass-once set:', key);
   }
 
   updateRules(newRules) {

@@ -150,21 +150,26 @@ async function notifyTriggerBlocked(payload, sender) {
   }
 
   if (ruleNotificationMethod === 'system' || ruleNotificationMethod === 'both') {
-    await chrome.notifications.create({
+    const notifId = await chrome.notifications.create({
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
       title,
-      message,
+      message: message + '\n\n点击「忽略」后需重新点击按钮',
+      buttons: [{ title: '忽略（需重新点击）' }],
       priority: 2,
     });
+    // Store context for button click
+    if (triggerSelector) {
+      await chrome.storage.local.set({ ['_snooze_' + notifId]: { triggerSelector, ruleId: payload.ruleId, tabId: payload.tabId } });
+    }
   }
   if (ruleNotificationMethod === 'popup') {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs[0]) {
-        await chrome.tabs.sendMessage(tabs[0].id, {
-          type: 'SHOW_POPUP',
-          payload: { title, message },
+      const targetTabId = payload.tabId || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+      if (targetTabId) {
+        await chrome.tabs.sendMessage(targetTabId, {
+          type: 'SHOW_POPUP_WITH_CONFIRM',
+          payload: { title, message, triggerSelector, ruleId: payload.ruleId },
         });
       }
     } catch {}

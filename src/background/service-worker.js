@@ -69,6 +69,7 @@ async function handleMessage(message, sender) {
     }
 
     case 'TRIGGER_BLOCKED': {
+      payload.tabId = sender.tab?.id;
       await notifyTriggerBlocked(payload, sender);
       return { acknowledged: true };
     }
@@ -169,6 +170,30 @@ chrome.runtime.onInstalled.addListener(async () => {
   const settings = await getSettings();
   if (!settings) {
     await saveSettings({});
+  }
+});
+
+// Handle notification button clicks ("本次不拦截" → bypass once + re-click)
+chrome.notifications.onButtonClicked.addListener(async (notifId) => {
+  console.log('[PageMonitor] Notification button clicked:', notifId);
+  const key = '_snooze_' + notifId;
+  const { [key]: ctx } = await chrome.storage.local.get(key);
+  console.log('[PageMonitor] Snooze context:', ctx);
+  if (ctx && ctx.triggerSelector) {
+    await chrome.storage.local.remove(key);
+    const tabId = ctx.tabId || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+    console.log('[PageMonitor] Sending BYPASS_ONCE to tab:', tabId, 'selector:', ctx.triggerSelector, 'ruleId:', ctx.ruleId);
+    if (tabId) {
+      try {
+        await chrome.tabs.sendMessage(tabId, {
+          type: 'BYPASS_ONCE',
+          payload: { selector: ctx.triggerSelector, ruleId: ctx.ruleId },
+        });
+        console.log('[PageMonitor] BYPASS_ONCE sent successfully');
+      } catch (e) {
+        console.error('[PageMonitor] Failed to send BYPASS_ONCE:', e);
+      }
+    }
   }
 });
 
