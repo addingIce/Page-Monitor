@@ -57,10 +57,22 @@ async function notifyStatusDetected(payload, sender) {
           type: 'PLAY_SOUND',
           payload: { soundUrl: chrome.runtime.getURL('sounds/alarm.wav') },
         });
-      } catch {
-        // content script may not be available
-      }
+      } catch {}
     }
+  }
+
+  // Popup notification
+  if (rule.notificationMethod === 'popup') {
+    try {
+      if (tabId) {
+        await chrome.tabs.sendMessage(tabId, { type: 'SHOW_POPUP', payload: { title, message } });
+      } else {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]) {
+          await chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_POPUP', payload: { title, message } });
+        }
+      }
+    } catch {}
   }
 }
 
@@ -145,6 +157,17 @@ async function notifyTriggerBlocked(payload, sender) {
       message,
       priority: 2,
     });
+  }
+  if (ruleNotificationMethod === 'popup') {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]) {
+        await chrome.tabs.sendMessage(tabs[0].id, {
+          type: 'SHOW_POPUP',
+          payload: { title, message },
+        });
+      }
+    } catch {}
   }
 }
 

@@ -65,6 +65,11 @@
         break;
       }
 
+      case 'SHOW_POPUP': {
+        window.alert(`[Page Monitor]\n\n${payload.message}`);
+        break;
+      }
+
       case 'START_PICKING': {
         if (window.__elementPicker) window.__elementPicker.start();
         break;
