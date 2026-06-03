@@ -235,7 +235,7 @@ function generateSelector(el) {
 // Custom confirm dialog with "关闭" / "本次不拦截" buttons
 function showCustomConfirm(title, message, triggerSelector, ruleId) {
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2147483640;display:flex;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.4);z-index:2147483640;display:flex;align-items:center;justify-content:center;';
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:8px;padding:20px;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-family:sans-serif;">
       <div style="font-weight:bold;font-size:14px;margin-bottom:8px;">${title}</div>

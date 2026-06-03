@@ -10,11 +10,16 @@ class ElementPicker {
   }
 
   init() {
+    console.log('[PageMonitor] ElementPicker init called, body:', !!document.body);
+    if (!document.body) {
+      setTimeout(() => this.init(), 200);
+      return;
+    }
     // Full-page transparent blocker — intercepts ALL clicks
     this.blocker = document.createElement('div');
     this.blocker.id = '__pm-blocker';
     this.blocker.style.cssText = `
-      position: fixed; inset: 0; z-index: 2147483646;
+      position: fixed; top:0; right:0; bottom:0; left:0; z-index: 2147483646;
       cursor: crosshair; display: none;
     `;
 

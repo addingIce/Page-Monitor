@@ -19,15 +19,20 @@ class TriggerInterceptor {
     this.rules = rules.filter(r =>
       r.enabled && r.blockTriggers && r.blockTriggers.length > 0
     );
-    if (this.rules.length === 0) return;
-    if (!this._active) {
-      document.addEventListener('click', this._onClick, true); // capture phase
-      this._active = true;
+    if (this.rules.length === 0) {
+      console.log('[PageMonitor] TriggerInterceptor: no rules with blockTriggers');
+      return;
     }
-    console.log('[PageMonitor] TriggerInterceptor active with', this.rules.length, 'rules');
+    if (!this._active) {
+      document.addEventListener('click', this._onClick, true);
+      this._active = true;
+      console.log('[PageMonitor] TriggerInterceptor: click listener registered on document (capture)');
+    }
+    console.log('[PageMonitor] TriggerInterceptor active with', this.rules.length, 'rules, selectors:', this.rules.flatMap(r => (r.blockTriggers||[]).map(t => t.selector)));
   }
 
   _onClick(e) {
+    console.log('[PageMonitor] TriggerInterceptor _onClick fired, target:', e.target?.tagName, e.target?.className);
     // Clear bypasses if clicked elsewhere (not on any bypassed button)
     const activeKeys = Object.keys(this._bypassMap);
     if (activeKeys.length > 0) {
@@ -61,12 +66,7 @@ class TriggerInterceptor {
     }
     if (hitTriggers.length === 0) return;
 
-    // Block the click
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-
-    // Check ALL rules' domTargets (from dom-monitor which has all rules)
+    // Check ALL rules' domTargets first (from dom-monitor which has all rules)
     const allRules = (window.__domMonitor && window.__domMonitor.rules) || window.__currentRules || this.rules;
     console.log('[PageMonitor] Checking all rules:', allRules.length, 'rules');
     const blockingRules = [];
@@ -79,6 +79,10 @@ class TriggerInterceptor {
     }
 
     if (blockingRules.length > 0) {
+      // Only block the click if rules actually matched
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       console.log('[PageMonitor] Blocking click!', blockingRules.length, 'rules matched, details:', blockingRules.map(b => ({ rule: b.rule.name, targets: b.matched.length, totalCount: b.matched.reduce((s,m) => s + (m.elementCount||1), 0) })));
       for (const { rule, matched, triggerSelector } of blockingRules) {
         chrome.runtime.sendMessage({
@@ -93,7 +97,7 @@ class TriggerInterceptor {
             timestamp: Date.now(),
             details: matched,
           },
-        }).catch(() => {});
+        }, () => { if (chrome.runtime.lastError) {} });
       }
     }
   }

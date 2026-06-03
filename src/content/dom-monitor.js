@@ -237,10 +237,10 @@ class DomMonitor {
         details,
         bypassCooldown: !!bypassCooldown,
       },
-    }).then(() => {
-      console.log('[PageMonitor] Detection reported to SW successfully');
-    }).catch(e => {
-      console.error('[PageMonitor] Failed to report detection:', e);
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('[PageMonitor] Failed to report detection:', chrome.runtime.lastError.message);
+      }
     });
   }
 
