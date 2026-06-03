@@ -195,6 +195,7 @@ class DomMonitor {
         type: 'dom',
         target,
         selector,
+        label: target.label || '',
         elementCount: matchCount,
         sampleText: sampleText || '',
         detail: detailInfo,

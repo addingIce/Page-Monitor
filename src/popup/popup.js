@@ -226,6 +226,7 @@ function addTargetRow(data) {
   row.id = id + '-row';
   row.innerHTML = `
     <div class="target-header">
+      <input type="text" id="${id}-label" class="form-input" placeholder="别名（可选，用于通知模板 {label}）" value="${esc(data.label||'')}" style="max-width:80px;font-size:11px">
       <input type="text" id="${id}-selector" class="form-input" placeholder="CSS 选择器" value="${esc(data.selector||'')}">
       <button type="button" class="btn btn-text btn-sm pick-target" data-target="${id}">选取</button>
       <select id="${id}-type" class="form-select">
@@ -314,8 +315,10 @@ function collectTargets() {
     const mode = $(id + '-mode');
     const val = $(id + '-value');
     const tf = $(id + '-textfilter');
+    const lb = $(id + '-label');
     targets.push({
       id: id,
+      label: lb ? lb.value.trim() : '',
       selector: sel ? sel.value.trim() : '',
       type: type ? type.value : 'element',
       checkMode: mode ? mode.value : 'presence',

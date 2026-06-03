@@ -113,6 +113,7 @@ function fillTemplate(template, rule, details, pageUrl) {
   const vars = {
     name: rule.name || '',
     selector: details.selector || '',
+    label: details.label || '',
     text: details.sampleText || '',
     count: String(details.elementCount ?? ''),
     url: pageUrl || '',
@@ -140,6 +141,7 @@ async function notifyTriggerBlocked(payload, sender) {
     const allTexts = matches.map(m => m.sampleText || '').filter(Boolean).join(', ');
     message = fillTemplate(ruleNotificationTemplate, { name: ruleName }, {
       selector: triggerSelector,
+      label: matches.map(m => m.label || '').filter(Boolean).join(', '),
       sampleText: allTexts,
       elementCount: totalCount,
     }, payload.url || '');

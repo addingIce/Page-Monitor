@@ -134,13 +134,13 @@ class TriggerInterceptor {
           elements = elements.filter(el => (el.textContent || '').toLowerCase().includes(tf));
         }
         const count = elements.length;
-        return { found: count > 0, selector, elementCount: count, sampleText: count > 0 ? (elements[0].textContent || '').trim().substring(0, 100) : '' };
+        return { found: count > 0, selector, label: target.label || '', elementCount: count, sampleText: count > 0 ? (elements[0].textContent || '').trim().substring(0, 100) : '' };
       }
       case 'checkbox': {
         const cb = document.querySelector(selector);
         if (!cb) return { found: false };
         const isChecked = cb.checked === true;
-        return { found: (checkMode === 'checked') ? isChecked : !isChecked, selector, elementCount: isChecked ? 1 : 0, sampleText: cb.value || '' };
+        return { found: (checkMode === 'checked') ? isChecked : !isChecked, selector, label: target.label || '', elementCount: isChecked ? 1 : 0, sampleText: cb.value || '' };
       }
       case 'input': {
         const inp = document.querySelector(selector);
@@ -148,7 +148,7 @@ class TriggerInterceptor {
         const val = inp.value || '';
         let found = val.length > 0;
         if (checkValue) found = matchValue(checkValue, val);
-        return { found, selector, elementCount: found ? 1 : 0, sampleText: val };
+        return { found, selector, label: target.label || '', elementCount: found ? 1 : 0, sampleText: val };
       }
       case 'select': {
         const selEl = document.querySelector(selector);
@@ -156,7 +156,7 @@ class TriggerInterceptor {
         const val = selEl.value || '';
         let found = val.length > 0;
         if (checkValue) found = matchValue(checkValue, val);
-        return { found, selector, elementCount: found ? 1 : 0, sampleText: val };
+        return { found, selector, label: target.label || '', elementCount: found ? 1 : 0, sampleText: val };
       }
     }
     return { found: false };
