@@ -364,18 +364,27 @@ function renderList() {
 // Rule Actions
 // ============================================================
 function doEdit(id) { const r = rules.find(x => x.id === id); if (r) showForm(r); }
-function doToggle(id) {
+async function doToggle(id) {
   const r = rules.find(x => x.id === id); if (!r) return;
-  r.enabled = !r.enabled; r.updatedAt = Date.now(); save().then(renderList);
+  r.enabled = !r.enabled; r.updatedAt = Date.now();
+  await save();
+  renderList();
+  chrome.runtime.sendMessage({ type: 'RULE_SAVE', payload: { rule: r } }).catch(() => {});
 }
-function doDelete(id) {
+async function doDelete(id) {
   if (!confirm('确定删除？')) return;
-  rules = rules.filter(x => x.id !== id); save().then(renderList);
+  rules = rules.filter(x => x.id !== id);
+  await save();
+  renderList();
+  chrome.runtime.sendMessage({ type: 'RULE_DELETE', payload: { ruleId: id } }).catch(() => {});
 }
-function deleteCurrentRule() {
+async function deleteCurrentRule() {
   const formId = $('rule-form').dataset.ruleId; if (!formId) return;
   if (!confirm('确定删除？')) return;
-  rules = rules.filter(x => x.id !== formId); save().then(hideForm);
+  rules = rules.filter(x => x.id !== formId);
+  await save();
+  chrome.runtime.sendMessage({ type: 'RULE_DELETE', payload: { ruleId: formId } }).catch(() => {});
+  hideForm();
 }
 
 // ============================================================
@@ -446,7 +455,7 @@ function hideForm() {
   loadStorage().then(renderList);
 }
 
-function saveForm() {
+async function saveForm() {
   const formId = $('rule-form').dataset.ruleId;
   const name = $('rule-name').value.trim();
   const url = $('rule-url').value.trim();
@@ -484,21 +493,22 @@ function saveForm() {
     detectionAction: { enabled: $('rule-detection-action').checked, buttonSelector: $('rule-action-selector').value.trim() },
   };
 
-  if (formId) {
-    const idx = rules.findIndex(x => x.id === formId);
-    if (idx >= 0) rules[idx] = { ...rules[idx], ...rule, updatedAt: Date.now() };
-  } else {
-    rule.id = rule.id || crypto.randomUUID();
-    rule.enabled = true;
-    rule.lastTriggeredAt = null;
-    rule.createdAt = Date.now();
-    rule.updatedAt = Date.now();
-    rules.push(rule);
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'RULE_SAVE',
+      payload: { rule },
+    });
+    if (!response?.success) {
+      alert('保存失败: ' + (response?.error || '未知错误'));
+      return;
+    }
+  } catch (err) {
+    alert('保存失败: SW 未响应，请重试');
+    return;
   }
 
-  save().then(hideForm).then(() => {
-    chrome.runtime.sendMessage({ type: 'RULE_SAVED', payload: { rule } }).catch(() => {});
-  });
+  await loadStorage();
+  hideForm();
   alert('规则已保存。请刷新目标监控页面后规则才会生效。');
 }
 

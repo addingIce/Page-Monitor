@@ -35,13 +35,13 @@ async function handleMessage(message, sender) {
 
     // Popup saves directly to storage and notifies SW to push to tabs
     case 'RULE_SAVED': {
-      const allRules = await getAllRules();
-      await pushRulesToMatchingTabs('');
+      await pushRulesToMatchingTabs(payload.rule?.url || '');
       return { acknowledged: true };
     }
 
     case 'RULE_DELETE': {
       await deleteRule(payload.ruleId);
+      await pushRulesToMatchingTabs('');
       return { success: true };
     }
 

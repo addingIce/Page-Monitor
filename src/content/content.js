@@ -7,7 +7,7 @@
     chrome.runtime.sendMessage({
       type: 'CONTENT_SCRIPT_READY',
       payload: { url: location.href, tabId: null },
-    }, response => {
+    }, async (response) => {
       if (chrome.runtime.lastError || !response) {
         console.warn('[PageMonitor] SW not responding, retry:', retryCount);
         if (retryCount < 3) {
@@ -15,7 +15,31 @@
         }
         return;
       }
+      await waitForModules();
       setupMonitors(response);
+    });
+  }
+
+  // Wait for all sub-modules to be initialized before using them.
+  // Chrome executes content scripts in manifest order, but this guards
+  // against edge cases where content.js runs before sub-module scripts.
+  function waitForModules(retries = 20) {
+    return new Promise((resolve) => {
+      let count = 0;
+      function check() {
+        if (window.__domMonitor && window.__autoRefresh &&
+            window.__elementPicker && window.__networkInterceptor &&
+            window.__triggerInterceptor) {
+          resolve();
+        } else if (count < retries) {
+          count++;
+          setTimeout(check, 50);
+        } else {
+          console.warn('[PageMonitor] Some modules not ready after waiting, proceeding with available');
+          resolve();
+        }
+      }
+      check();
     });
   }
 

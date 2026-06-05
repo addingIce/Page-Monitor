@@ -1,3 +1,5 @@
+import { generateId } from './id-generator.js';
+
 const STORAGE_KEYS = {
   RULES: 'rules',
   SETTINGS: 'settings',
@@ -31,6 +33,10 @@ async function getRuleById(id) {
 
 async function saveRule(rule) {
   const rules = await getRules();
+  // Ensure rule has an id
+  if (!rule.id) {
+    rule.id = generateId();
+  }
   const idx = rules.findIndex(r => r.id === rule.id);
   if (idx >= 0) {
     rules[idx] = { ...rules[idx], ...rule, updatedAt: Date.now() };
