@@ -3,6 +3,7 @@
   "name": "Page Monitor",
   "version": "1.0.0",
   "description": "监控网页任务状态，变化时发送通知提醒",
+  "minimum_chrome_version": "91",
 
   "permissions": [
     "storage",

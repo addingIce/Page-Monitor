@@ -5,6 +5,15 @@
   padding: 0;
 }
 
+/* Hidden file input — not display:none for cross-browser compatibility */
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
 :root {
   --primary: #4285f4;
   --primary-hover: #3367d6;
