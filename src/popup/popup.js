@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Keep url from saved form state
         $('rule-notify-method').value = ruleBeingEdited.notificationMethod || 'system';
         $('rule-notify-template').value = ruleBeingEdited.notificationTemplate || '';
-        $('rule-cooldown').value = (ruleBeingEdited.cooldownMs / 1000) || 60;
+        $('rule-cooldown').value = (ruleBeingEdited.cooldownMs / 1000) || 1;
         const ar = ruleBeingEdited.autoRefresh || {};
         $('rule-refresh-enabled').checked = ar.enabled || false;
         $('refresh-config').style.display = ar.enabled ? 'block' : 'none';
@@ -410,7 +410,7 @@ function showForm(rule, defaultUrl) {
     $('rule-url-mode').value = rule.urlMatchMode || 'contains';
     $('rule-notify-method').value = rule.notificationMethod || 'system';
     $('rule-notify-template').value = rule.notificationTemplate || '';
-    $('rule-cooldown').value = (rule.cooldownMs / 1000) || 60;
+    $('rule-cooldown').value = (rule.cooldownMs / 1000) || 1;
 
     const ar = rule.autoRefresh || {};
     $('rule-refresh-enabled').checked = ar.enabled || false;
@@ -484,7 +484,7 @@ async function saveForm() {
     apiEndpoints: endpoints,
     notificationMethod: $('rule-notify-method').value,
     notificationTemplate: $('rule-notify-template').value.trim(),
-    cooldownMs: parseInt($('rule-cooldown').value) * 1000 || 60000,
+    cooldownMs: parseInt($('rule-cooldown').value) * 1000 || 1000,
     autoRefresh: {
       enabled: $('rule-refresh-enabled').checked,
       timedRefresh: { enabled: $('rule-timed-refresh').checked, intervalMs: parseInt($('rule-timed-interval').value) * 1000 || 30000 },

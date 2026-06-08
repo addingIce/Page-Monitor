@@ -8,9 +8,9 @@ const STORAGE_KEYS = {
 
 const DEFAULT_SETTINGS = {
   globalEnabled: true,
-  defaultCooldownMs: 60000,
+  defaultCooldownMs: 1000,
   maxResponseSize: 10240,
-  defaultNotificationMethod: 'system',
+  defaultNotificationMethod: 'popup',
 };
 
 async function getRules() {

@@ -140,9 +140,9 @@
         <div class="form-group">
           <label for="rule-notify-method">通知方式</label>
           <select id="rule-notify-method" class="form-select">
+            <option value="popup">弹窗通知</option>
             <option value="system">系统通知</option>
             <option value="sound">声音提醒</option>
-            <option value="popup">弹窗通知</option>
             <option value="both">系统 + 声音</option>
           </select>
         </div>
@@ -155,7 +155,7 @@
 
         <div class="form-group">
           <label for="rule-cooldown">冷却时间（秒）</label>
-          <input type="number" id="rule-cooldown" class="form-input form-input-sm" value="60" min="1">
+          <input type="number" id="rule-cooldown" class="form-input form-input-sm" value="1" min="1">
         </div>
 
         <div class="form-divider">检测后自动操作</div>

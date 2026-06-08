@@ -23,8 +23,8 @@ function createDefaultRule(overrides = {}) {
     urlMatchMode: 'contains',
     domTargets: [],
     apiEndpoints: [],
-    notificationMethod: 'system',
-    cooldownMs: 60000,
+    notificationMethod: 'popup',
+    cooldownMs: 1000,
     lastTriggeredAt: null,
     autoRefresh: {
       enabled: false,
