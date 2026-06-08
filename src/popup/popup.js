@@ -139,26 +139,9 @@ function bindEvents() {
   });
 
   // Import config
-  $('import-btn').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data.rules && !data.settings) throw new Error('无效的配置文件');
-      if (!confirm(`导入 ${(data.rules||[]).length} 条规则和设置，是否覆盖当前配置？`)) return;
-      if (data.rules) await chrome.storage.local.set({ rules: data.rules });
-      if (data.settings) await chrome.storage.local.set({ settings: data.settings });
-      await loadStorage();
-      renderList();
-      alert('导入成功');
-    } catch (err) {
-      alert('导入失败: ' + err.message);
-    }
-    e.target.value = '';
+  $('import-btn').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/popup/import.html') });
   });
-
   $('add-rule-btn').addEventListener('click', async () => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     showForm(null, tabs[0]?.url || '');
